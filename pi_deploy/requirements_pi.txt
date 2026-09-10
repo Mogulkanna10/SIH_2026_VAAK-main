@@ -1,0 +1,5 @@
+tflite-runtime
+numpy
+sounddevice
+websocket-client
+psutil
