@@ -263,15 +263,22 @@ def stream_utterance(
             raw = ws.recv()
             if raw:
                 msg = json.loads(raw)
-                partial_text = msg.get("partial", "")
-                if partial_text and not t3_captured:
-                    # T3: server has received enough audio to produce a partial
+                
+                # Check for first byte ack
+                if msg.get("ack") == "first_audio_byte" and not t3_captured:
                     rec.t3_server_ack = time.time()
                     rec.first_byte_latency_ms = (
                         rec.t3_server_ack - rec.t1_keyword_end
                     ) * 1000.0
                     t3_captured = True
-                    log.debug("T3 captured (first server partial): %s", partial_text)
+                    log.debug("T3 captured (first audio byte ack from server)")
+
+                # Collect intermediate final results (when silence breaks)
+                if "text" in msg and msg["text"].strip():
+                    rec.transcript += msg["text"] + " "
+                    log.info("Intermediate final: %s", msg["text"])
+                    
+                partial_text = msg.get("partial", "")
                 if partial_text:
                     partials.append(partial_text)
                     log.info("Partial: %s", partial_text)
@@ -295,7 +302,9 @@ def stream_utterance(
         final_raw = ws.recv()
         rec.t4_final_transcript = time.time()
         final_msg = json.loads(final_raw)
-        rec.transcript = final_msg.get("text", "")
+        if "text" in final_msg and final_msg["text"].strip():
+            rec.transcript += final_msg["text"]
+        rec.transcript = rec.transcript.strip()
         rec.total_latency_ms = (
             rec.t4_final_transcript - rec.t1_keyword_end
         ) * 1000.0
