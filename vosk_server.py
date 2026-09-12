@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import sys
 import json
-from vosk import Model, KaldiRecognizer
+from vosk import Model, KaldiRecognizer, SpkModel
 
 if len(sys.argv) == 2:
     model_path = sys.argv[1]
@@ -10,6 +10,7 @@ else:
     model_path = "model"
 
 model = Model(model_path)
+spk_model = SpkModel("spk_model")
 
 async def recognize(websocket):
     print("Client connected")
@@ -21,6 +22,7 @@ async def recognize(websocket):
                 msg = json.loads(message)
                 if 'config' in msg:
                     rec = KaldiRecognizer(model, msg['config']['sample_rate'])
+                    rec.SetSpkModel(spk_model)
                 elif 'eof' in msg:
                     if rec:
                         await websocket.send(rec.FinalResult())

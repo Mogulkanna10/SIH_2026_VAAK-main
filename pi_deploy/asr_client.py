@@ -63,11 +63,14 @@ class DetectionRecord:
     t3_server_ack: float = 0.0          # epoch — first partial from Vosk received
     t4_final_transcript: float = 0.0   # epoch — final transcript received
     transcript: str = ""
+    spk_vector: Optional[List[float]] = None
+    speaker_identity: str = "UNKNOWN"
     ws_latency_ms: float = 0.0          # T2 - T1
     first_byte_latency_ms: float = 0.0  # T3 - T1
     total_latency_ms: float = 0.0       # T4 - T1
     success: bool = False
     error: Optional[str] = None
+    raw_final_json: str = "{}"
 
     def summary(self) -> str:
         return (
@@ -277,6 +280,8 @@ def stream_utterance(
                 if "text" in msg and msg["text"].strip():
                     rec.transcript += msg["text"] + " "
                     log.info("Intermediate final: %s", msg["text"])
+                if "spk" in msg:
+                    rec.spk_vector = msg["spk"]
                     
                 partial_text = msg.get("partial", "")
                 if partial_text:
@@ -301,9 +306,12 @@ def stream_utterance(
         ws.send('{"eof" : 1}')
         final_raw = ws.recv()
         rec.t4_final_transcript = time.time()
+        rec.raw_final_json = final_raw
         final_msg = json.loads(final_raw)
         if "text" in final_msg and final_msg["text"].strip():
             rec.transcript += final_msg["text"]
+        if "spk" in final_msg:
+            rec.spk_vector = final_msg["spk"]
         rec.transcript = rec.transcript.strip()
         rec.total_latency_ms = (
             rec.t4_final_transcript - rec.t1_keyword_end
